@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from 'react
 import { apiClient, ApiError } from '../api/client';
 import PageLoading from '../components/PageLoading';
 
-export type Role = 'Client' | 'Operator' | 'Admin';
+export type Role = 'Client' | 'Master' | 'Admin';
 
 export interface AuthUser {
   id: string;

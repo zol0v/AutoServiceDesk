@@ -37,6 +37,8 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.MapInboundClaims = false;
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -46,7 +48,8 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        RoleClaimType = "role"
+        RoleClaimType = "role",
+        NameClaimType = "sub"
     };
 
     options.Events = new JwtBearerEvents
@@ -89,6 +92,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IUserAdminService, UserAdminService>();
 
 builder.Services.AddControllers();
 
@@ -136,7 +141,7 @@ using (var scope = app.Services.CreateScope())
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    foreach (var roleName in new[] { "Client", "Operator", "Admin" })
+    foreach (var roleName in new[] { "Client", "Master", "Admin" })
     {
         if (!await roleManager.RoleExistsAsync(roleName))
         {

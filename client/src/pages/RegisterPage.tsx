@@ -13,7 +13,7 @@ interface RegisterFormValues {
 
 const ROLE_REDIRECTS: Record<Role, string> = {
   Client: '/tickets',
-  Operator: '/queue/new',
+  Master: '/queue/new',
   Admin: '/admin/categories',
 };
 

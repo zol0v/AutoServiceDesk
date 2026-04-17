@@ -81,16 +81,13 @@ public class AuthService : IAuthService
         return new AuthResponse(token);
     }
 
-    public async Task<MeResponse> GetMeAsync(string userId)
+    public async Task<MeResponse> GetMeAsync(string userId, string role)
     {
         var user = await _userManager.FindByIdAsync(userId);
         if (user is null)
         {
             throw new UnauthorizedException("Пользователь не найден.");
         }
-
-        var roles = await _userManager.GetRolesAsync(user);
-        var role = roles.FirstOrDefault() ?? "Client";
 
         return new MeResponse(
             user.Id,

@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { RootRedirect } from './app/RootRedirect';
 import AppLayout from './components/AppLayout';
 import PageNotFound from './components/PageNotFound';
 import { RequireAuth } from './components/RequireAuth';
@@ -49,7 +50,7 @@ export default function App() {
           <Route
             path="/tickets/:id"
             element={
-              <RequireRole roles={['Client', 'Operator']}>
+              <RequireRole roles={['Client', 'Master']}>
                 <TicketDetailPage />
               </RequireRole>
             }
@@ -58,7 +59,7 @@ export default function App() {
           <Route
             path="/queue/new"
             element={
-              <RequireRole roles={['Operator']}>
+              <RequireRole roles={['Master']}>
                 <QueueNewPage />
               </RequireRole>
             }
@@ -67,7 +68,7 @@ export default function App() {
           <Route
             path="/queue/assigned"
             element={
-              <RequireRole roles={['Operator']}>
+              <RequireRole roles={['Master']}>
                 <QueueAssignedPage />
               </RequireRole>
             }
@@ -76,7 +77,7 @@ export default function App() {
           <Route
             path="/queue/resolved"
             element={
-              <RequireRole roles={['Operator']}>
+              <RequireRole roles={['Master']}>
                 <QueueResolvedPage />
               </RequireRole>
             }
@@ -101,7 +102,7 @@ export default function App() {
           />
         </Route>
 
-        <Route path="/" element={<Navigate to="/tickets" replace />} />
+        <Route path="/" element={<RootRedirect />} />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </BrowserRouter>

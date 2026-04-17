@@ -10,8 +10,22 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
+    public DbSet<Category> Categories => Set<Category>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Category>(entity =>
+        {
+            entity.HasKey(category => category.Id);
+
+            entity.Property(category => category.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.HasIndex(category => category.Name)
+                .IsUnique();
+        });
     }
 }

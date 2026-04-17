@@ -1,90 +1,83 @@
-# Auto Service Desk — Lab 3 (Authorization: Backend + Frontend)
+# Лабораторная работа 4  
+## Категории и управление пользователями  
+### Auto Service Desk
 
-Клиент-серверное приложение **Auto Service Desk** с реализованной авторизацией на **ASP.NET Core 8 + Identity + JWT** и клиентом на **React 18 + TypeScript + Vite**, с **Ant Design 5**, **React Router v6** и **TanStack Query v5**.
+В данной лабораторной работе в проект **Auto Service Desk** был добавлен административный функционал для работы с категориями услуг автосервиса и ролями пользователей.
 
-## Что сделано (Lab 3)
-- Реализована серверная часть на **ASP.NET Core Web API**.
-- Подключены:
-  - **ASP.NET Core Identity**
-  - **Entity Framework Core**
-  - **SQL Server / LocalDB**
-  - **JWT Bearer Authentication**
-  - **Swagger UI**
-- Реализованы:
-  - `ApplicationUser` с дополнительным полем `DisplayName`
-  - `AppDbContext`
-  - роли пользователей:
-    - `Client`
-    - `Operator`
-    - `Admin`
-  - JWT access token
-  - Auth endpoints:
-    - `POST /api/auth/register`
-    - `POST /api/auth/login`
-    - `GET /api/auth/me`
-    - `GET /health`
-  - dev-seeding ролей и тестовых пользователей
-  - глобальная обработка ошибок через `ProblemDetails`
-- На клиенте доработаны:
-  - `AuthContext`
-    - `token` хранится в `localStorage`
-    - `init()` вызывает `/api/auth/me`
-    - `login()` вызывает `/api/auth/login`
-    - `register()` вызывает `/api/auth/register`
-    - `logout()` очищает `localStorage`
-  - страницы:
-    - `LoginPage`
-    - `RegisterPage`
-  - proxy в `vite.config.ts` для запросов на `/api`
-  - редиректы по ролям после входа/регистрации
-- Сборка клиента проверяется командой: `npm run build`
-- Сервер запускается командой: `dotnet run`
+## Что сделано
 
-## Маршруты
-Public:
-- `/login`
-- `/register`
+### Серверная часть
+- добавлена сущность `Category`
+- обновлен `AppDbContext`
+- создана миграция `InitialLab4`
+- реализован `CategoryService`
+- реализован `UserAdminService`
+- добавлен `CategoriesController`
+- добавлен `UsersController`
+- выполнен сидинг категорий и тестовых пользователей
+- настроено логирование административных действий
+- сохранена JWT-аутентификация с ролями `Client`, `Master`, `Admin`
 
-Client:
-- `/tickets`
-- `/tickets/new`
-- `/tickets/:id`
+### Клиентская часть
+- добавлены API-модули:
+  - `client/src/api/categories.ts`
+  - `client/src/api/users.ts`
+- реализована страница администратора `CategoriesPage`
+- реализована страница администратора `UsersPage`
+- подключен `TanStack Query`
+- настроены маршруты `/admin/categories` и `/admin/users`
+- выполнено разграничение доступа по ролям
+- обновлено меню администратора
 
-Operator:
-- `/queue/new`
-- `/queue/assigned`
-- `/queue/resolved`
-- `/tickets/:id`
+## Структура ролей
+- **Client** — клиент автосервиса
+- **Master** — мастер, который будет работать с заявками в следующих лабораторных
+- **Admin** — администратор системы
 
-Admin:
-- `/admin/categories`
-- `/admin/users`
+## Основные backend endpoints
 
-## Backend API
-Auth:
+### Категории
+- `GET /api/categories`
+- `POST /api/categories`
+- `PUT /api/categories/{id}`
+- `PATCH /api/categories/{id}/active`
+
+### Пользователи
+- `GET /api/users`
+- `PUT /api/users/{id}/role`
+
+### Авторизация
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 
-Service:
-- `GET /health`
+## Тестовые пользователи
 
-Swagger:
-- `/swagger`
+### Администратор
+- `admin@demo.com`
+- пароль: `Admin123!`
 
-## Тестовые пользователи (Development)
-- `admin@demo.com / Admin123!`
-- `operator1@demo.com / Operator123!`
-- `operator2@demo.com / Operator123!`
-- `client1@demo.com / Client123!`
-- `client2@demo.com / Client123!`
-- `client3@demo.com / Client123!`
+### Мастера
+- `master1@demo.com`
+- пароль: `Master123!`
 
-## Как запустить сервер
-Из корня репозитория:
+- `master2@demo.com`
+- пароль: `Master123!`
 
-```bash
-cd server/ServiceDesk.API
-dotnet restore
-dotnet ef database update
-dotnet run
+### Клиенты
+- `client1@demo.com`
+- пароль: `Client123!`
+
+- `client2@demo.com`
+- пароль: `Client123!`
+
+- `client3@demo.com`
+- пароль: `Client123!`
+
+## Начальные категории
+- Диагностика двигателя
+- Плановое ТО
+- Подвеска и ходовая
+- Тормозная система
+- Электрика
+- Кузовной ремонт

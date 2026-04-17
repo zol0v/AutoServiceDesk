@@ -47,7 +47,11 @@ public class AuthController : ControllerBase
             ?? User.FindFirstValue("sub")
             ?? throw new InvalidOperationException("User ID claim is missing.");
 
-        var result = await _authService.GetMeAsync(userId);
+        var role = User.FindFirstValue("role")
+            ?? User.FindFirstValue(ClaimTypes.Role)
+            ?? "Client";
+
+        var result = await _authService.GetMeAsync(userId, role);
         return Ok(result);
     }
 }

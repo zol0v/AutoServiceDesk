@@ -5,19 +5,19 @@ import { useAuth } from '../contexts/AuthContext';
 const { Header, Sider, Content } = Layout;
 
 const clientMenuItems = [
-  { key: '/tickets', label: <Link to="/tickets">My Tickets</Link> },
-  { key: '/tickets/new', label: <Link to="/tickets/new">New Ticket</Link> },
+  { key: '/tickets', label: <Link to="/tickets">Мои обращения</Link> },
+  { key: '/tickets/new', label: <Link to="/tickets/new">Новая запись</Link> },
 ];
 
-const operatorMenuItems = [
-  { key: '/queue/new', label: <Link to="/queue/new">New</Link> },
-  { key: '/queue/assigned', label: <Link to="/queue/assigned">Assigned to Me</Link> },
-  { key: '/queue/resolved', label: <Link to="/queue/resolved">Resolved</Link> },
+const masterMenuItems = [
+  { key: '/queue/new', label: <Link to="/queue/new">Новые заявки</Link> },
+  { key: '/queue/assigned', label: <Link to="/queue/assigned">Назначенные мне</Link> },
+  { key: '/queue/resolved', label: <Link to="/queue/resolved">Завершенные</Link> },
 ];
 
 const adminMenuItems = [
-  { key: '/admin/categories', label: <Link to="/admin/categories">Categories</Link> },
-  { key: '/admin/users', label: <Link to="/admin/users">Users</Link> },
+  { key: '/admin/categories', label: <Link to="/admin/categories">Категории услуг</Link> },
+  { key: '/admin/users', label: <Link to="/admin/users">Пользователи</Link> },
 ];
 
 export default function AppLayout() {
@@ -31,8 +31,8 @@ export default function AppLayout() {
   const menuItems =
     role === 'Client'
       ? clientMenuItems
-      : role === 'Operator'
-        ? operatorMenuItems
+      : role === 'Master'
+        ? masterMenuItems
         : role === 'Admin'
           ? adminMenuItems
           : [];
@@ -58,10 +58,10 @@ export default function AppLayout() {
 
         <Space>
           <Typography.Text style={{ color: 'rgba(255,255,255,0.85)' }}>
-            {user?.displayName ?? 'Guest'} · {role}
+            {user?.displayName ?? 'Гость'} · {role}
           </Typography.Text>
           <Button type="link" style={{ color: 'white', padding: 0 }} onClick={handleLogout}>
-            Logout
+            Выход
           </Button>
         </Space>
       </Header>
