@@ -11,6 +11,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Ticket> Tickets => Set<Ticket>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -26,6 +27,34 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
             entity.HasIndex(category => category.Name)
                 .IsUnique();
+        });
+
+        builder.Entity<Ticket>(entity =>
+        {
+            entity.HasKey(ticket => ticket.Id);
+
+            entity.Property(ticket => ticket.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(ticket => ticket.Description)
+                .IsRequired()
+                .HasMaxLength(2000);
+
+            entity.HasOne(ticket => ticket.Category)
+                .WithMany()
+                .HasForeignKey(ticket => ticket.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(ticket => ticket.Author)
+                .WithMany()
+                .HasForeignKey(ticket => ticket.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(ticket => ticket.Assignee)
+                .WithMany()
+                .HasForeignKey(ticket => ticket.AssigneeId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

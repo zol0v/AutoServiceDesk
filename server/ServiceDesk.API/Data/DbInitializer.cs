@@ -8,6 +8,16 @@ public static class DbInitializer
 {
     private record SeedUser(string Email, string Password, string DisplayName, string Role);
 
+    private record SeedTicket(
+        string Title,
+        string Description,
+        TicketPriority Priority,
+        TicketStatus Status,
+        string CategoryName,
+        string AuthorEmail,
+        string? AssigneeEmail,
+        int CreatedDaysAgo);
+
     private static readonly SeedUser[] Users =
     [
         new("admin@demo.com", "Admin123!", "Администратор", "Admin"),
@@ -28,6 +38,59 @@ public static class DbInitializer
         ("Кузовной ремонт", false)
     ];
 
+    private static readonly SeedTicket[] Tickets =
+    [
+        new(
+            "Запись на диагностику двигателя",
+            "Автомобиль начал троить на холодную, нужен первичный осмотр и компьютерная диагностика.",
+            TicketPriority.High,
+            TicketStatus.New,
+            "Диагностика двигателя",
+            "client1@demo.com",
+            null,
+            1),
+
+        new(
+            "Стук в подвеске на неровностях",
+            "При проезде лежачих полицейских слышен сильный стук спереди. Нужна проверка ходовой части.",
+            TicketPriority.High,
+            TicketStatus.InProgress,
+            "Подвеска и ходовая",
+            "client1@demo.com",
+            "master1@demo.com",
+            3),
+
+        new(
+            "Плановое ТО перед поездкой",
+            "Нужно заменить масло, фильтры и провести стандартную проверку автомобиля перед дальней поездкой.",
+            TicketPriority.Medium,
+            TicketStatus.Resolved,
+            "Плановое ТО",
+            "client2@demo.com",
+            "master2@demo.com",
+            7),
+
+        new(
+            "Проверка тормозной системы",
+            "Педаль тормоза стала мягче, чем обычно. Нужна диагностика тормозов.",
+            TicketPriority.High,
+            TicketStatus.New,
+            "Тормозная система",
+            "client3@demo.com",
+            null,
+            2),
+
+        new(
+            "Проблема с электрикой салона",
+            "Периодически пропадает подсветка панели приборов и не работает прикуриватель.",
+            TicketPriority.Medium,
+            TicketStatus.InProgress,
+            "Электрика",
+            "client2@demo.com",
+            "master1@demo.com",
+            4)
+    ];
+
     public static async Task SeedAsync(IServiceProvider services)
     {
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
@@ -36,6 +99,7 @@ public static class DbInitializer
 
         await SeedUsersAsync(userManager, logger);
         await SeedCategoriesAsync(db, logger);
+        await SeedTicketsAsync(db, logger);
     }
 
     private static async Task SeedUsersAsync(
@@ -46,22 +110,22 @@ public static class DbInitializer
         {
             var existingUser = await userManager.FindByEmailAsync(seed.Email);
             if (existingUser is null)
+            {
+                existingUser = new ApplicationUser
                 {
-                    existingUser = new ApplicationUser
-                    {
-                        UserName = seed.Email,
-                        Email = seed.Email,
-                        DisplayName = seed.DisplayName
-                    };
+                    UserName = seed.Email,
+                    Email = seed.Email,
+                    DisplayName = seed.DisplayName
+                };
 
                 var createResult = await userManager.CreateAsync(existingUser, seed.Password);
                 if (!createResult.Succeeded)
-                    {
-                        var errors = string.Join(", ", createResult.Errors.Select(error => error.Description));
-                        logger.LogError("Failed to create seed user {Email}: {Errors}", seed.Email, errors);
-                        continue;
-                    }
+                {
+                    var errors = string.Join(", ", createResult.Errors.Select(error => error.Description));
+                    logger.LogError("Failed to create seed user {Email}: {Errors}", seed.Email, errors);
+                    continue;
                 }
+            }
             else
             {
                 var needsUpdate =
@@ -84,6 +148,7 @@ public static class DbInitializer
                     }
                 }
             }
+
             var currentRoles = await userManager.GetRolesAsync(existingUser);
             if (currentRoles.Count > 0)
             {
@@ -112,21 +177,80 @@ public static class DbInitializer
     {
         foreach (var (name, isActive) in Categories)
         {
-            var exists = await db.Categories.AnyAsync(category => category.Name == name);
-            if (exists)
+            var existingCategory = await db.Categories.FirstOrDefaultAsync(category => category.Name == name);
+            if (existingCategory is null)
             {
+                db.Categories.Add(new Category
+                {
+                    Name = name,
+                    IsActive = isActive
+                });
+
+                logger.LogInformation("Seeded category {CategoryName} with active={IsActive}", name, isActive);
                 continue;
             }
 
-            db.Categories.Add(new Category
+            if (existingCategory.IsActive != isActive)
             {
-                Name = name,
-                IsActive = isActive
-            });
-
-            logger.LogInformation("Seeded category {CategoryName} with active={IsActive}", name, isActive);
+                existingCategory.IsActive = isActive;
+                logger.LogInformation("Updated category {CategoryName} active={IsActive}", name, isActive);
+            }
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedTicketsAsync(AppDbContext db, ILogger logger)
+    {
+        if (await db.Tickets.AnyAsync())
+        {
+            return;
+        }
+
+        var categoryIds = await db.Categories
+            .ToDictionaryAsync(category => category.Name, category => category.Id);
+
+        var userIds = await db.Users
+            .ToDictionaryAsync(user => user.Email ?? string.Empty, user => user.Id);
+
+        foreach (var seed in Tickets)
+        {
+            if (!categoryIds.TryGetValue(seed.CategoryName, out var categoryId))
+            {
+                logger.LogWarning("Category {CategoryName} was not found for seed ticket {Title}", seed.CategoryName, seed.Title);
+                continue;
+            }
+
+            if (!userIds.TryGetValue(seed.AuthorEmail, out var authorId))
+            {
+                logger.LogWarning("Author {AuthorEmail} was not found for seed ticket {Title}", seed.AuthorEmail, seed.Title);
+                continue;
+            }
+
+            string? assigneeId = null;
+            if (!string.IsNullOrWhiteSpace(seed.AssigneeEmail))
+            {
+                if (!userIds.TryGetValue(seed.AssigneeEmail, out assigneeId))
+                {
+                    logger.LogWarning("Assignee {AssigneeEmail} was not found for seed ticket {Title}", seed.AssigneeEmail, seed.Title);
+                    continue;
+                }
+            }
+
+            db.Tickets.Add(new Ticket
+            {
+                Title = seed.Title,
+                Description = seed.Description,
+                Priority = seed.Priority,
+                Status = seed.Status,
+                CategoryId = categoryId,
+                AuthorId = authorId,
+                AssigneeId = assigneeId,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-seed.CreatedDaysAgo)
+            });
+        }
+
+        await db.SaveChangesAsync();
+        logger.LogInformation("Seeded demo tickets for Lab 5");
     }
 }
