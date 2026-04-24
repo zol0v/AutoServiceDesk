@@ -52,6 +52,46 @@ public class TicketsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id:int}/assign")]
+    [Authorize(Roles = "Master")]
+    [ProducesResponseType(typeof(TicketResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<TicketResponse>> AssignToMe(int id)
+    {
+        var result = await _ticketService.AssignToMeAsync(id, GetCurrentUserId(), GetCurrentRole());
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/status")]
+    [Authorize(Roles = "Master")]
+    [ProducesResponseType(typeof(TicketResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketResponse>> ChangeStatus(int id, [FromBody] ChangeStatusRequest request)
+    {
+        var result = await _ticketService.ChangeStatusAsync(request: request, id: id, currentUserId: GetCurrentUserId(), currentRole: GetCurrentRole());
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/reject")]
+    [Authorize(Roles = "Master")]
+    [ProducesResponseType(typeof(TicketResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketResponse>> Reject(int id, [FromBody] RejectRequest request)
+    {
+        var result = await _ticketService.RejectAsync(request: request, id: id, currentUserId: GetCurrentUserId(), currentRole: GetCurrentRole());
+        return Ok(result);
+    }
+
     private string GetCurrentUserId()
     {
         return User.FindFirstValue(ClaimTypes.NameIdentifier)

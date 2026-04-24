@@ -78,6 +78,11 @@ public class TicketService : ITicketService
         string currentUserId,
         string currentRole)
     {
+        if (query.AssignedToMe == true && query.UnassignedOnly == true)
+        {
+            throw new BusinessException("Нельзя одновременно запрашивать свои и свободные заявки.");
+        }
+
         var status = ParseStatus(query.Status);
 
         var ticketsQuery = BuildTicketQuery()
@@ -87,6 +92,25 @@ public class TicketService : ITicketService
         if (string.Equals(currentRole, "Client", StringComparison.Ordinal))
         {
             ticketsQuery = ticketsQuery.Where(ticket => ticket.AuthorId == currentUserId);
+        }
+        else if (string.Equals(currentRole, "Master", StringComparison.Ordinal))
+        {
+            if (query.UnassignedOnly == true)
+            {
+                ticketsQuery = ticketsQuery.Where(ticket => ticket.AssigneeId == null);
+            }
+
+            if (query.AssignedToMe == true)
+            {
+                ticketsQuery = ticketsQuery.Where(ticket => ticket.AssigneeId == currentUserId);
+
+                if (!status.HasValue)
+                {
+                    ticketsQuery = ticketsQuery.Where(ticket =>
+                        ticket.Status == TicketStatus.New ||
+                        ticket.Status == TicketStatus.InProgress);
+                }
+            }
         }
 
         if (status.HasValue)
@@ -127,7 +151,149 @@ public class TicketService : ITicketService
             throw new ForbiddenException("Вы не можете просматривать чужие обращения.");
         }
 
+        if (string.Equals(currentRole, "Master", StringComparison.Ordinal) &&
+            ticket.AssigneeId is not null &&
+            ticket.AssigneeId != currentUserId)
+        {
+            throw new ForbiddenException("Вы не можете просматривать заявку, назначенную другому мастеру.");
+        }
+
         return ticket.ToResponse();
+    }
+
+    public async Task<TicketResponse> AssignToMeAsync(
+        int id,
+        string currentUserId,
+        string currentRole)
+    {
+        if (!string.Equals(currentRole, "Master", StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("Только мастер может брать заявки в работу.");
+        }
+
+        var ticket = await BuildTicketQuery()
+            .FirstOrDefaultAsync(item => item.Id == id)
+            ?? throw new NotFoundException($"Обращение с идентификатором {id} не найдено.");
+
+        if (ticket.AssigneeId == currentUserId)
+        {
+            throw new BusinessException("Эта заявка уже назначена вам.");
+        }
+
+        if (ticket.AssigneeId is not null && ticket.AssigneeId != currentUserId)
+        {
+            throw new ConflictException("Заявка уже назначена другому мастеру.");
+        }
+
+        if (ticket.Status != TicketStatus.New)
+        {
+            throw new BusinessException("Взять в работу можно только новую заявку.");
+        }
+
+        ticket.AssigneeId = currentUserId;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Ticket {TicketId} assigned to master {MasterId}",
+            ticket.Id,
+            currentUserId);
+
+        var updatedTicket = await BuildTicketQuery()
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == ticket.Id);
+
+        return updatedTicket.ToResponse();
+    }
+
+    public async Task<TicketResponse> ChangeStatusAsync(
+        int id,
+        ChangeStatusRequest request,
+        string currentUserId,
+        string currentRole)
+    {
+        if (!string.Equals(currentRole, "Master", StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("Только мастер может менять статус заявки.");
+        }
+
+        var ticket = await BuildTicketQuery()
+            .FirstOrDefaultAsync(item => item.Id == id)
+            ?? throw new NotFoundException($"Обращение с идентификатором {id} не найдено.");
+
+        if (ticket.AssigneeId != currentUserId)
+        {
+            throw new ForbiddenException("Вы можете менять статус только своих заявок.");
+        }
+
+        var nextStatus = ParseRequiredStatus(request.Status);
+
+        if (ticket.Status == nextStatus)
+        {
+            throw new BusinessException("Новый статус совпадает с текущим.");
+        }
+
+        if (!IsValidTransition(ticket.Status, nextStatus))
+        {
+            throw new BusinessException("Недопустимый переход статуса по workflow.");
+        }
+
+        ticket.Status = nextStatus;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Ticket {TicketId} status changed to {Status} by master {MasterId}",
+            ticket.Id,
+            ticket.Status,
+            currentUserId);
+
+        var updatedTicket = await BuildTicketQuery()
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == ticket.Id);
+
+        return updatedTicket.ToResponse();
+    }
+
+    public async Task<TicketResponse> RejectAsync(
+        int id,
+        RejectRequest request,
+        string currentUserId,
+        string currentRole)
+    {
+        if (!string.Equals(currentRole, "Master", StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("Только мастер может отклонять заявки.");
+        }
+
+        var ticket = await BuildTicketQuery()
+            .FirstOrDefaultAsync(item => item.Id == id)
+            ?? throw new NotFoundException($"Обращение с идентификатором {id} не найдено.");
+
+        if (ticket.AssigneeId != currentUserId)
+        {
+            throw new ForbiddenException("Вы можете отклонять только свои заявки.");
+        }
+
+        if (ticket.Status == TicketStatus.Closed || ticket.Status == TicketStatus.Rejected)
+        {
+            throw new BusinessException("Заявка уже находится в финальном статусе.");
+        }
+
+        var reason = NormalizeRequiredText(request.Reason, "Причина отклонения");
+
+        ticket.Status = TicketStatus.Rejected;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Ticket {TicketId} rejected by master {MasterId}. Reason: {Reason}",
+            ticket.Id,
+            currentUserId,
+            reason);
+
+        var updatedTicket = await BuildTicketQuery()
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == ticket.Id);
+
+        return updatedTicket.ToResponse();
     }
 
     private IQueryable<Ticket> BuildTicketQuery()
@@ -151,6 +317,28 @@ public class TicketService : ITicketService
         }
 
         return status;
+    }
+
+    private static TicketStatus ParseRequiredStatus(string rawStatus)
+    {
+        var normalized = NormalizeRequiredText(rawStatus, "Статус");
+
+        if (!Enum.TryParse<TicketStatus>(normalized, true, out var status))
+        {
+            throw new BusinessException("Некорректное значение нового статуса.");
+        }
+
+        return status;
+    }
+
+    private static bool IsValidTransition(TicketStatus from, TicketStatus to)
+    {
+        return (from, to) switch
+        {
+            (TicketStatus.New, TicketStatus.InProgress) => true,
+            (TicketStatus.InProgress, TicketStatus.Resolved) => true,
+            _ => false
+        };
     }
 
     private static string NormalizeRequiredText(string value, string fieldName)

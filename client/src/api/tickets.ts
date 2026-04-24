@@ -32,6 +32,8 @@ export interface CreateTicketRequest {
 export interface TicketsQuery {
   status?: TicketStatus;
   categoryId?: number;
+  assignedToMe?: boolean;
+  unassignedOnly?: boolean;
 }
 
 export interface PagedResponse<T> {
@@ -54,6 +56,14 @@ function buildTicketsQuery(params?: TicketsQuery) {
     searchParams.set('categoryId', params.categoryId.toString());
   }
 
+  if (params.assignedToMe === true) {
+    searchParams.set('assignedToMe', 'true');
+  }
+
+  if (params.unassignedOnly === true) {
+    searchParams.set('unassignedOnly', 'true');
+  }
+
   const query = searchParams.toString();
   return query ? `?${query}` : '';
 }
@@ -68,4 +78,16 @@ export function getTicketById(id: number) {
 
 export function createTicket(payload: CreateTicketRequest) {
   return apiClient.post<TicketResponse>('/api/tickets', payload);
+}
+
+export function assignTicket(id: number) {
+  return apiClient.post<TicketResponse>(`/api/tickets/${id}/assign`);
+}
+
+export function changeTicketStatus(id: number, status: TicketStatus) {
+  return apiClient.post<TicketResponse>(`/api/tickets/${id}/status`, { status });
+}
+
+export function rejectTicket(id: number, reason: string) {
+  return apiClient.post<TicketResponse>(`/api/tickets/${id}/reject`, { reason });
 }

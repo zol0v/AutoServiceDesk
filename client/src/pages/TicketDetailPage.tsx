@@ -1,8 +1,8 @@
-import { Button, Descriptions, Space, Typography } from 'antd';
-import { useQuery } from '@tanstack/react-query';
+import { Button, Descriptions, Space, Typography, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { getTicketById } from '../api/tickets';
+import { assignTicket, changeTicketStatus, getTicketById, rejectTicket } from '../api/tickets';
 import PageError from '../components/PageError';
 import PageLoading from '../components/PageLoading';
 import TicketPriorityTag from '../components/TicketPriorityTag';
@@ -12,7 +12,9 @@ import { useAuth } from '../contexts/AuthContext';
 export default function TicketDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const queryClient = useQueryClient();
+  const { role, user } = useAuth();
+  const [messageApi, contextHolder] = message.useMessage();
 
   const ticketId = Number(id);
 
@@ -20,6 +22,46 @@ export default function TicketDetailPage() {
     queryKey: ['ticket', ticketId],
     queryFn: () => getTicketById(ticketId),
     enabled: Number.isFinite(ticketId),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: assignTicket,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      await queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      messageApi.success('Заявка назначена вам');
+    },
+    onError: (error) => {
+      const text = error instanceof ApiError ? error.message : 'Не удалось назначить заявку.';
+      messageApi.error(text);
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'InProgress' | 'Resolved' }) =>
+      changeTicketStatus(id, status),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      await queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      messageApi.success('Статус заявки обновлен');
+    },
+    onError: (error) => {
+      const text = error instanceof ApiError ? error.message : 'Не удалось изменить статус заявки.';
+      messageApi.error(text);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => rejectTicket(id, reason),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      await queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      messageApi.success('Заявка отклонена');
+    },
+    onError: (error) => {
+      const text = error instanceof ApiError ? error.message : 'Не удалось отклонить заявку.';
+      messageApi.error(text);
+    },
   });
 
   if (!Number.isFinite(ticketId)) {
@@ -31,11 +73,11 @@ export default function TicketDetailPage() {
   }
 
   if (ticketQuery.isError) {
-    const message =
+    const text =
       ticketQuery.error instanceof ApiError
         ? ticketQuery.error.message
         : 'Не удалось загрузить карточку обращения.';
-    return <PageError message={message} />;
+    return <PageError message={text} />;
   }
 
   const ticket = ticketQuery.data;
@@ -44,10 +86,43 @@ export default function TicketDetailPage() {
     return <PageError message="Карточка обращения не найдена." />;
   }
 
+  const isMaster = role === 'Master';
+  const isUnassigned = ticket.assignee === null;
+  const isAssignedToCurrentMaster = ticket.assignee?.id === user?.id;
+
+  const canAssign = isMaster && isUnassigned && ticket.status === 'New';
+  const canStart = isMaster && isAssignedToCurrentMaster && ticket.status === 'New';
+  const canResolve = isMaster && isAssignedToCurrentMaster && ticket.status === 'InProgress';
+  const canReject =
+    isMaster &&
+    isAssignedToCurrentMaster &&
+    ticket.status !== 'Resolved' &&
+    ticket.status !== 'Rejected' &&
+    ticket.status !== 'Closed';
+
+  const handleReject = () => {
+    const reason = window.prompt('Укажите причину отклонения заявки');
+
+    if (reason === null) {
+      return;
+    }
+
+    const normalizedReason = reason.trim();
+
+    if (!normalizedReason) {
+      messageApi.warning('Причина отклонения обязательна.');
+      return;
+    }
+
+    rejectMutation.mutate({ id: ticket.id, reason: normalizedReason });
+  };
+
   const backPath = role === 'Client' ? '/tickets' : '/queue/new';
 
   return (
     <Space direction="vertical" size="large">
+      {contextHolder}
+
       <Space direction="vertical">
         <Typography.Title level={3}>{ticket.title}</Typography.Title>
         <Typography.Text type="secondary">
@@ -83,7 +158,33 @@ export default function TicketDetailPage() {
         </Descriptions.Item>
       </Descriptions>
 
-      <Button onClick={() => navigate(backPath)}>Назад</Button>
+      <Space wrap>
+        {canAssign && (
+          <Button type="primary" onClick={() => assignMutation.mutate(ticket.id)}>
+            Взять в работу
+          </Button>
+        )}
+
+        {canStart && (
+          <Button onClick={() => statusMutation.mutate({ id: ticket.id, status: 'InProgress' })}>
+            Начать работу
+          </Button>
+        )}
+
+        {canResolve && (
+          <Button type="primary" onClick={() => statusMutation.mutate({ id: ticket.id, status: 'Resolved' })}>
+            Завершить заявку
+          </Button>
+        )}
+
+        {canReject && (
+          <Button danger onClick={handleReject}>
+            Отклонить заявку
+          </Button>
+        )}
+
+        <Button onClick={() => navigate(backPath)}>Назад</Button>
+      </Space>
     </Space>
   );
 }

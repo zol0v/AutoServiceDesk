@@ -23,9 +23,9 @@ public class ExceptionMiddleware
         {
             await _next(context);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            await HandleExceptionAsync(context, ex);
+            await HandleExceptionAsync(context, exception);
         }
     }
 
@@ -37,6 +37,7 @@ public class ExceptionMiddleware
             UnauthorizedException => (HttpStatusCode.Unauthorized, "Unauthorized"),
             ForbiddenException => (HttpStatusCode.Forbidden, "Forbidden"),
             NotFoundException => (HttpStatusCode.NotFound, "Not Found"),
+            ConflictException => (HttpStatusCode.Conflict, "Conflict"),
             _ => (HttpStatusCode.InternalServerError, "Internal Server Error")
         };
 

@@ -88,7 +88,17 @@ public static class DbInitializer
             "Электрика",
             "client2@demo.com",
             "master1@demo.com",
-            4)
+            4),
+
+        new(
+            "Клиент отказался от кузовного ремонта",
+            "После оценки стоимости ремонта клиент решил отказаться от работ.",
+            TicketPriority.Low,
+            TicketStatus.Rejected,
+            "Диагностика двигателя",
+            "client3@demo.com",
+            "master2@demo.com",
+            9)
     ];
 
     public static async Task SeedAsync(IServiceProvider services)
@@ -202,11 +212,6 @@ public static class DbInitializer
 
     private static async Task SeedTicketsAsync(AppDbContext db, ILogger logger)
     {
-        if (await db.Tickets.AnyAsync())
-        {
-            return;
-        }
-
         var categoryIds = await db.Categories
             .ToDictionaryAsync(category => category.Name, category => category.Id);
 
@@ -217,13 +222,19 @@ public static class DbInitializer
         {
             if (!categoryIds.TryGetValue(seed.CategoryName, out var categoryId))
             {
-                logger.LogWarning("Category {CategoryName} was not found for seed ticket {Title}", seed.CategoryName, seed.Title);
+                logger.LogWarning(
+                    "Category {CategoryName} was not found for seed ticket {Title}",
+                    seed.CategoryName,
+                    seed.Title);
                 continue;
             }
 
             if (!userIds.TryGetValue(seed.AuthorEmail, out var authorId))
             {
-                logger.LogWarning("Author {AuthorEmail} was not found for seed ticket {Title}", seed.AuthorEmail, seed.Title);
+                logger.LogWarning(
+                    "Author {AuthorEmail} was not found for seed ticket {Title}",
+                    seed.AuthorEmail,
+                    seed.Title);
                 continue;
             }
 
@@ -232,25 +243,43 @@ public static class DbInitializer
             {
                 if (!userIds.TryGetValue(seed.AssigneeEmail, out assigneeId))
                 {
-                    logger.LogWarning("Assignee {AssigneeEmail} was not found for seed ticket {Title}", seed.AssigneeEmail, seed.Title);
+                    logger.LogWarning(
+                        "Assignee {AssigneeEmail} was not found for seed ticket {Title}",
+                        seed.AssigneeEmail,
+                        seed.Title);
                     continue;
                 }
             }
 
-            db.Tickets.Add(new Ticket
+            var existingTicket = await db.Tickets.FirstOrDefaultAsync(ticket => ticket.Title == seed.Title);
+
+            if (existingTicket is null)
             {
-                Title = seed.Title,
-                Description = seed.Description,
-                Priority = seed.Priority,
-                Status = seed.Status,
-                CategoryId = categoryId,
-                AuthorId = authorId,
-                AssigneeId = assigneeId,
-                CreatedAt = DateTimeOffset.UtcNow.AddDays(-seed.CreatedDaysAgo)
-            });
+                db.Tickets.Add(new Ticket
+                {
+                    Title = seed.Title,
+                    Description = seed.Description,
+                    Priority = seed.Priority,
+                    Status = seed.Status,
+                    CategoryId = categoryId,
+                    AuthorId = authorId,
+                    AssigneeId = assigneeId,
+                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-seed.CreatedDaysAgo)
+                });
+
+                continue;
+            }
+
+            existingTicket.Description = seed.Description;
+            existingTicket.Priority = seed.Priority;
+            existingTicket.Status = seed.Status;
+            existingTicket.CategoryId = categoryId;
+            existingTicket.AuthorId = authorId;
+            existingTicket.AssigneeId = assigneeId;
+            existingTicket.CreatedAt = DateTimeOffset.UtcNow.AddDays(-seed.CreatedDaysAgo);
         }
 
         await db.SaveChangesAsync();
-        logger.LogInformation("Seeded demo tickets for Lab 5");
+        logger.LogInformation("Seeded demo tickets for Lab 6");
     }
 }
